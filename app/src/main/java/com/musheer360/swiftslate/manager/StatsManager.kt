@@ -91,6 +91,15 @@ class StatsManager(context: Context) {
             return best
         }
 
+    /** How many times [favoriteCommand] has been used (0 when there is none). */
+    val favoriteCommandCount: Int
+        get() {
+            val json = readJsonObject(KEY_COMMAND_COUNTS)
+            var bestCount = 0
+            json.keys().forEach { key -> bestCount = maxOf(bestCount, json.optInt(key, 0)) }
+            return bestCount
+        }
+
     /** Returns daily counts for the last 7 days, ordered oldest-first. Missing days are 0. */
     fun dailyCounts(): List<Pair<String, Int>> {
         val json = readJsonObject(KEY_DAILY_COUNTS)

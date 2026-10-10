@@ -53,6 +53,7 @@ fun DashboardScreen(keyManager: KeyManager, commandManager: CommandManager, stat
     // Stats state
     var monthlyRequests by remember { mutableIntStateOf(statsManager.monthlyRequests) }
     var favoriteCommand by remember { mutableStateOf(statsManager.favoriteCommand) }
+    var favoriteCount by remember { mutableIntStateOf(statsManager.favoriteCommandCount) }
     var dailyCounts by remember { mutableStateOf(statsManager.dailyCounts()) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -68,6 +69,7 @@ fun DashboardScreen(keyManager: KeyManager, commandManager: CommandManager, stat
             keyCount = newKeyCount
             monthlyRequests = statsManager.monthlyRequests
             favoriteCommand = statsManager.favoriteCommand
+            favoriteCount = statsManager.favoriteCommandCount
             dailyCounts = statsManager.dailyCounts()
         }
     }
@@ -189,7 +191,8 @@ fun DashboardScreen(keyManager: KeyManager, commandManager: CommandManager, stat
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = stringResource(R.string.dashboard_favorite_command),
+                        text = stringResource(R.string.dashboard_favorite_command) +
+                            if (favoriteCount > 0) " \u00b7 $favoriteCount" else "",
                         fontSize = rhythm.captionSize,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
