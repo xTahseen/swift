@@ -128,6 +128,7 @@ class CommandManager(context: Context) {
             newObj.put("trigger", migrated)
             newObj.put("prompt", prompt)
             newObj.put("type", obj.optString("type", CommandType.AI.name))
+            if (obj.optBoolean("history", false)) newObj.put("history", true)
             newArr.put(newObj)
         }
         prefs.edit().putString("custom_commands", newArr.toString()).apply()
@@ -198,8 +199,9 @@ class CommandManager(context: Context) {
             val prompt = obj.optString("prompt", "")
             if (trigger.isEmpty() || prompt.isEmpty()) continue
             if (!trigger.startsWith(prefix)) needsMigration = true
-            customCommands.add(Command(trigger, prompt, false,
-                try { CommandType.valueOf(obj.optString("type", CommandType.AI.name)) } catch (_: Exception) { CommandType.AI }))
+            val type = try { CommandType.valueOf(obj.optString("type", CommandType.AI.name)) } catch (_: Exception) { CommandType.AI }
+            customCommands.add(Command(trigger, prompt, false, type,
+                keepHistory = type == CommandType.AI && obj.optBoolean("history", false)))
         }
         // Self-heal prefix mismatch (e.g. crash between two apply() calls in setTriggerPrefix)
         if (needsMigration && !migrating) {
@@ -245,6 +247,7 @@ class CommandManager(context: Context) {
         newObj.put("trigger", command.trigger)
         newObj.put("prompt", command.prompt)
         newObj.put("type", command.type.name)
+        if (command.keepHistory && command.type == CommandType.AI) newObj.put("history", true)
         newArr.put(newObj)
         prefs.edit().putString("custom_commands", newArr.toString()).apply()
         invalidateCache()
@@ -304,6 +307,7 @@ class CommandManager(context: Context) {
                 out.put("prompt", prompt)
                 out.put("type",
                     if (type == CommandType.TEXT_REPLACER.name) CommandType.TEXT_REPLACER.name else CommandType.AI.name)
+                if (type != CommandType.TEXT_REPLACER.name && obj.optBoolean("history", false)) out.put("history", true)
                 cleaned.put(out)
             }
             if (arr.length() > 0 && cleaned.length() == 0) return false

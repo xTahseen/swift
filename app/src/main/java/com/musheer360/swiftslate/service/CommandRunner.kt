@@ -7,7 +7,9 @@ import com.musheer360.swiftslate.api.ApiError
 import com.musheer360.swiftslate.api.ApiException
 import com.musheer360.swiftslate.api.GeminiClient
 import com.musheer360.swiftslate.api.OpenAICompatibleClient
+import com.musheer360.swiftslate.manager.HistoryManager
 import com.musheer360.swiftslate.manager.KeyManager
+import com.musheer360.swiftslate.model.ChatTurn
 import com.musheer360.swiftslate.model.PrefKeys
 import com.musheer360.swiftslate.provider.Providers
 import com.musheer360.swiftslate.provider.Transport
@@ -35,6 +37,8 @@ private const val STRUCTURED_OUTPUT_RETRY_MS = 86_400_000L // re-try structured 
  * Knows nothing about how the result is delivered: no nodes, no toasts, no UI state. Suspends
  * on the caller's dispatcher and reads disk (prefs, Keystore), so call it off the main thread.
  *
+ * @param historyTrigger set for a command with "Remember conversation" on: its earlier exchanges
+ *   are sent along as chat turns and, on success, this exchange is remembered. Null = stateless.
  * @param onFirstAttempt run just before the first request actually goes out — after it is known
  *   that a usable key exists. The service starts its inline spinner here.
  */
@@ -45,6 +49,7 @@ suspend fun runTextCommand(
     openAIClient: OpenAICompatibleClient,
     prompt: String,
     text: String,
+    historyTrigger: String? = null,
     onFirstAttempt: () -> Unit = {}
 ): CommandOutcome {
     // keys_keystore_error rather than a "reinstall" message: the usual cause is the Keystore key
@@ -63,6 +68,11 @@ suspend fun runTextCommand(
     val temperature = prefs.getFloat(PrefKeys.TEMPERATURE, DEFAULT_TEMPERATURE).toDouble()
     val useStructuredOutput = System.currentTimeMillis() -
         prefs.getLong(PrefKeys.STRUCTURED_OUTPUT_DISABLED_AT, 0L) > STRUCTURED_OUTPUT_RETRY_MS
+
+    val historyManager = if (historyTrigger != null) HistoryManager(context) else null
+    // Non-null (even when empty) switches the clients into conversation mode.
+    val history: List<ChatTurn>? =
+        if (historyTrigger != null) historyManager?.get(historyTrigger) ?: emptyList() else null
 
     var lastErrorMsg: String? = null
     var lastErrorWasRateLimit = false
@@ -86,10 +96,12 @@ suspend fun runTextCommand(
             Transport.OPENAI_COMPAT -> openAIClient.generate(
                 prompt, text, key, model, temperature, endpoint,
                 useJsonObjectMode = provider.useJsonObjectMode(useStructuredOutput),
-                extraParams = provider.reasoningParams(model))
+                extraParams = provider.reasoningParams(model),
+                history = history)
             Transport.GEMINI_NATIVE -> geminiClient.generate(
                 prompt, text, key, model, temperature, useStructuredOutput,
-                thinkingLevel = provider.thinkingLevel(model))
+                thinkingLevel = provider.thinkingLevel(model),
+                history = history)
         }
 
         result.onSuccess { generated ->
@@ -99,6 +111,7 @@ suspend fun runTextCommand(
                     .putLong(PrefKeys.STRUCTURED_OUTPUT_DISABLED_AT, System.currentTimeMillis())
                     .apply()
             }
+            if (historyTrigger != null) historyManager?.append(historyTrigger, text, generated.text)
             // Keep the truncation warning localized and shared by both entry points rather than
             // leaving callers to duplicate it (or clients to inject an English-only string).
             val outputText = if (generated.truncated) {

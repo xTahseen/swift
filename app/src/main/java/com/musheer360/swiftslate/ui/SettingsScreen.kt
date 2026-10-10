@@ -5,6 +5,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -247,10 +249,14 @@ fun SettingsScreen(commandManager: CommandManager, prefs: SharedPreferences, key
 
     val rhythm = LocalSlateRhythm.current
 
+    // Scrolls: on shorter screens (or with a large font size) the cards below do not fit, and
+    // the bottom ones used to be cut off with no way to reach them. Padding sits inside the
+    // scrolled content so the last card keeps its gap above the navigation bar.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer { }
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = rhythm.screenPaddingH, vertical = rhythm.screenPaddingV)
     ) {
         ScreenTitle(stringResource(R.string.settings_title))
@@ -664,22 +670,10 @@ fun SettingsScreen(commandManager: CommandManager, prefs: SharedPreferences, key
 
         Spacer(modifier = Modifier.height(rhythm.cardGap))
 
-        // Card 4: About. The only weighted child, so its bottom edge lands flush
-        // screenPaddingV above the nav bar exactly like the last card on every
-        // other tab, and it absorbs whatever slack the rhythm above did not take.
-        //
-        // That slack is split rather than pooled. The two text groups each sit in
-        // an equally weighted half, so the divider lands on the card's midline and
-        // each group is centred within its own half. Pooling it instead — whether
-        // as weighted spacers hugging the divider (which opened a ~104 dp void on
-        // tall screens) or as one centred block (which left dead space above the
-        // version line and below the sponsor line) — is what this replaces.
-        SlateCard(
-            modifier = Modifier.weight(1f),
-            fillHeight = true
-        ) {
+        // Card 4: About. Natural height now that the page scrolls.
+        SlateCard {
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
@@ -702,7 +696,7 @@ fun SettingsScreen(commandManager: CommandManager, prefs: SharedPreferences, key
             SlateDivider()
             Spacer(modifier = Modifier.height(rhythm.groupGap))
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(

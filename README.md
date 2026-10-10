@@ -13,6 +13,10 @@ This fork runs SwiftSlate as an **LSPosed module** instead of an Android accessi
 - `service/HookBridgeService` (in the SwiftSlate app) runs the command: API keys, prompts, provider selection, undo state, stats and all localized strings stay in the app process. The keyboard only receives a small "plan" to apply.
 - Requests carry a per-install token that is only distributed through LSPosed remote preferences, so a random app that binds the exported service cannot spend your API keys.
 
+**Conversation history (new)**
+- When adding or editing an AI command, turn on **Remember conversation**. The command then keeps its earlier exchanges (last ~10, stored only on your device) and sends them with each new message, so you can chat across several `?trigger` uses.
+- Open the command in the Commands tab to see how many messages it remembers and tap **Clear history**. Turning the switch off, or deleting the command, also erases its history. History is never exported in backups.
+
 **Troubleshooting**
 - Dashboard says *Module enabled* forever: the keyboard has not loaded the hook. Check the scope, then force-stop the keyboard.
 - Toast "could not reach the app": on Android 11+ the keyboard may be unable to see SwiftSlate (package visibility). Reinstall with `adb install --force-queryable SwiftSlate.apk`.

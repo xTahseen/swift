@@ -60,6 +60,17 @@ internal object ApiClientUtils {
      */
     fun wrapUserText(text: String): String = "<input>\n$text\n</input>"
 
+    /**
+     * System prompt for commands that keep a conversation history. Unlike
+     * [SYSTEM_PROMPT_PREFIX] the model is NOT a stateless text transform here: earlier turns are
+     * sent as real chat messages and the command's own prompt acts as its instructions.
+     */
+    fun chatSystemPrompt(prompt: String): String =
+        "You are an assistant replying inside a text field of the user's phone. Earlier messages " +
+            "of this conversation are included, so use them as context. Reply with only the " +
+            "message to insert into the text field: no preamble, no markdown code fences, no " +
+            "quotation of the user's message. Instructions: " + prompt
+
     fun readResponseBounded(connection: HttpURLConnection): String {
         return connection.inputStream.use { stream ->
             BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->

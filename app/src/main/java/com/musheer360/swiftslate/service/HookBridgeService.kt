@@ -240,7 +240,8 @@ class HookBridgeService : Service() {
 
         var started = false
         val outcome = runTextCommand(
-            applicationContext, keyManager, client, openAIClient, command.prompt, cleanText
+            applicationContext, keyManager, client, openAIClient, command.prompt, cleanText,
+            historyTrigger = if (command.keepHistory) command.trigger else null
         ) {
             started = true
             spinning[key] = cleanText

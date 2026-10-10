@@ -11,5 +11,7 @@ data class Command(
     val trigger: String,
     val prompt: String,
     val isBuiltIn: Boolean = false,
-    val type: CommandType = CommandType.AI
+    val type: CommandType = CommandType.AI,
+    /** AI commands only: remember earlier exchanges and send them with each request. */
+    val keepHistory: Boolean = false
 )

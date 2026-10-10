@@ -8,4 +8,9 @@
     <string name="module_status_awaiting">Module enabled</string>
     <string name="module_hint_awaiting">LSPosed sees SwiftSlate, but no keyboard has loaded it yet. In LSPosed, add your keyboard to SwiftSlate\'s scope, then force-stop the keyboard (or reboot).</string>
     <string name="module_hint_inactive">Enable the SwiftSlate module in LSPosed, add your keyboard to its scope, then restart the keyboard. The accessibility service is no longer needed.</string>
+    <string name="commands_history_label">Remember conversation</string>
+    <string name="commands_history_desc">Keep earlier messages of this command and send them with each new one, like a chat. Stored only on this device.</string>
+    <string name="commands_history_badge">· history</string>
+    <string name="commands_history_count">%1$d messages remembered</string>
+    <string name="commands_history_clear">Clear history</string>
 </resources>

@@ -1,5 +1,7 @@
 package com.musheer360.swiftslate.api
 
+import com.musheer360.swiftslate.model.ChatTurn
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -170,14 +172,15 @@ class GeminiClient {
         model: String,
         temperature: Double,
         useStructuredOutput: Boolean = false,
-        thinkingLevel: String? = null
+        thinkingLevel: String? = null,
+        history: List<ChatTurn>? = null
     ): Result<GenerateResult> = withContext(Dispatchers.IO) {
-        var result = doGenerate(prompt, text, apiKey, model, temperature, useStructuredOutput, thinkingLevel)
+        var result = doGenerate(prompt, text, apiKey, model, temperature, useStructuredOutput, thinkingLevel, history)
 
         // Retry once for transient network/server errors (with 1.5s backoff)
         if (result.isFailure && result.exceptionOrNull().isTransientNetwork()) {
             kotlinx.coroutines.delay(1500)
-            result = doGenerate(prompt, text, apiKey, model, temperature, useStructuredOutput, thinkingLevel)
+            result = doGenerate(prompt, text, apiKey, model, temperature, useStructuredOutput, thinkingLevel, history)
         }
 
         val cleaned = stripHttpPrefix(result.map { it.text })
@@ -201,7 +204,8 @@ class GeminiClient {
         model: String,
         temperature: Double,
         withStructured: Boolean,
-        thinkingLevel: String? = null
+        thinkingLevel: String? = null,
+        history: List<ChatTurn>? = null
     ): Result<GenerateResult> {
         var connection: HttpURLConnection? = null
         return try {
@@ -219,15 +223,26 @@ class GeminiClient {
                 put("systemInstruction", JSONObject().apply {
                     put("parts", JSONArray().apply {
                         put(JSONObject().apply {
-                            put("text", ApiClientUtils.SYSTEM_PROMPT_PREFIX + prompt)
+                            put("text", if (history != null) ApiClientUtils.chatSystemPrompt(prompt)
+                                else ApiClientUtils.SYSTEM_PROMPT_PREFIX + prompt)
                         })
                     })
                 })
                 put("contents", JSONArray().apply {
+                    // Conversation mode: earlier turns first, then the new message as-is.
+                    history?.forEach { turn ->
+                        put(JSONObject().apply {
+                            put("role", if (turn.fromUser) "user" else "model")
+                            put("parts", JSONArray().apply {
+                                put(JSONObject().apply { put("text", turn.text) })
+                            })
+                        })
+                    }
                     put(JSONObject().apply {
+                        put("role", "user")
                         put("parts", JSONArray().apply {
                             put(JSONObject().apply {
-                                put("text", ApiClientUtils.wrapUserText(text))
+                                put("text", if (history != null) text else ApiClientUtils.wrapUserText(text))
                             })
                         })
                     })

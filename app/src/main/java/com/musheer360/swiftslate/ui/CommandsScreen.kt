@@ -9,6 +9,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -37,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musheer360.swiftslate.R
 import com.musheer360.swiftslate.manager.CommandManager
+import com.musheer360.swiftslate.manager.HistoryManager
 import com.musheer360.swiftslate.model.Command
 import com.musheer360.swiftslate.model.CommandType
 import com.musheer360.swiftslate.ui.components.LocalSlateRhythm
@@ -62,6 +67,15 @@ fun CommandsScreen(commandManager: CommandManager) {
     var editingTrigger by rememberSaveable { mutableStateOf<String?>(null) }
     var commandToDelete by remember { mutableStateOf<String?>(null) }
     var isFormExpanded by rememberSaveable { mutableStateOf(false) }
+    var keepHistory by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val historyManager = remember { HistoryManager(context.applicationContext) }
+    // Bumped after a history change so the "N messages" counts re-read from storage.
+    var historyVersion by remember { mutableIntStateOf(0) }
+    val formScroll = rememberScrollState()
+    // The form grows with the history switch and the error line; on short screens it must
+    // scroll instead of being cut off by the list above it.
+    val maxFormHeight = (LocalConfiguration.current.screenHeightDp * 0.5f).dp
     val prefix = commandManager.getTriggerPrefix()
     val errorPrefixMsg = stringResource(R.string.commands_error_prefix, prefix)
     val errorDuplicateMsg = stringResource(R.string.commands_error_duplicate)
@@ -215,6 +229,14 @@ fun CommandsScreen(commandManager: CommandManager) {
                                         fontSize = rhythm.emphasisSize,
                                         color = MaterialTheme.colorScheme.primary
                                     )
+                                    if (cmd.keepHistory) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = stringResource(R.string.commands_history_badge),
+                                            fontSize = rhythm.bodySize,
+                                            color = MaterialTheme.colorScheme.tertiary
+                                        )
+                                    }
                                     if (!cmd.isBuiltIn) {
                                         Spacer(modifier = Modifier.weight(1f))
                                         Text(
@@ -230,6 +252,7 @@ fun CommandsScreen(commandManager: CommandManager) {
                                                 trigger = cmd.trigger
                                                 prompt = cmd.prompt
                                                 selectedType = cmd.type
+                                                keepHistory = cmd.keepHistory
                                                 editingTrigger = cmd.trigger
                                                 errorMessage = null
                                                 isFormExpanded = true
@@ -281,6 +304,33 @@ fun CommandsScreen(commandManager: CommandManager) {
                                             fontSize = rhythm.bodySize,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                         )
+                                        if (cmd.keepHistory) {
+                                            val remembered = remember(historyVersion, cmd.trigger) {
+                                                historyManager.count(cmd.trigger)
+                                            }
+                                            Spacer(modifier = Modifier.height(rhythm.formGap))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = stringResource(R.string.commands_history_count, remembered),
+                                                    fontSize = rhythm.bodySize,
+                                                    color = MaterialTheme.colorScheme.tertiary,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                TextButton(
+                                                    enabled = remembered > 0,
+                                                    onClick = {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        historyManager.clear(cmd.trigger)
+                                                        historyVersion++
+                                                    }
+                                                ) {
+                                                    Text(stringResource(R.string.commands_history_clear))
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -335,7 +385,11 @@ fun CommandsScreen(commandManager: CommandManager) {
                     shrinkTowards = Alignment.Top
                 ) + fadeOut(tween(150))
             ) {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = maxFormHeight)
+                        .verticalScroll(formScroll)
+                ) {
                     Spacer(modifier = Modifier.height(rhythm.groupGap))
                     SingleChoiceSegmentedButtonRow(
                         modifier = Modifier.fillMaxWidth()
@@ -407,6 +461,34 @@ fun CommandsScreen(commandManager: CommandManager) {
                         singleLine = false,
                         modifier = Modifier.height(100.dp)
                     )
+                    if (selectedType == CommandType.AI) {
+                        Spacer(modifier = Modifier.height(rhythm.formGap))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                Text(
+                                    text = stringResource(R.string.commands_history_label),
+                                    fontSize = rhythm.emphasisSize,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = stringResource(R.string.commands_history_desc),
+                                    fontSize = rhythm.bodySize,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = keepHistory,
+                                onCheckedChange = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    keepHistory = it
+                                }
+                            )
+                        }
+                    }
                     errorMessage?.let { msg ->
                         Text(
                             text = msg,
@@ -424,6 +506,7 @@ fun CommandsScreen(commandManager: CommandManager) {
                                 errorMessage = null
                                 editingTrigger = null
                                 selectedType = CommandType.AI
+                                keepHistory = false
                                 isFormExpanded = false
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -462,17 +545,28 @@ fun CommandsScreen(commandManager: CommandManager) {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 // Single atomic write: replaces the command being edited (or the
                                 // same trigger, when adding) without a delete-then-add window.
+                                val historyOn = keepHistory && selectedType == CommandType.AI
+                                val oldTrigger = editingTrigger
                                 val saved = commandManager.saveCustomCommand(
-                                    command = Command(trimmedTrigger, prompt.trim(), false, selectedType),
-                                    replacing = editingTrigger ?: trimmedTrigger
+                                    command = Command(trimmedTrigger, prompt.trim(), false, selectedType, keepHistory = historyOn),
+                                    replacing = oldTrigger ?: trimmedTrigger
                                 )
                                 commands = commandManager.getCommands()
                                 if (!saved) return@Button
+                                if (!historyOn) {
+                                    // Turned off (or a replacer): forget what was remembered.
+                                    historyManager.clear(trimmedTrigger)
+                                    if (oldTrigger != null) historyManager.clear(oldTrigger)
+                                } else if (oldTrigger != null && oldTrigger != trimmedTrigger) {
+                                    historyManager.rename(oldTrigger, trimmedTrigger)
+                                }
+                                historyVersion++
                                 trigger = ""
                                 prompt = ""
                                 errorMessage = null
                                 editingTrigger = null
                                 selectedType = CommandType.AI
+                                keepHistory = false
                                 isFormExpanded = false
                             }
                         },
@@ -496,6 +590,7 @@ fun CommandsScreen(commandManager: CommandManager) {
                 TextButton(onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     commandManager.removeCustomCommand(triggerToDelete)
+                    historyManager.clear(triggerToDelete)
                     expandedIds = expandedIds - triggerToDelete
                     if (editingTrigger == triggerToDelete) {
                         trigger = ""
@@ -503,6 +598,7 @@ fun CommandsScreen(commandManager: CommandManager) {
                         errorMessage = null
                         editingTrigger = null
                         selectedType = CommandType.AI
+                        keepHistory = false
                         isFormExpanded = false
                     }
                     commands = commandManager.getCommands()
